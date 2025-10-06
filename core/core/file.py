@@ -8,6 +8,8 @@ from cognitive_node_interfaces.srv import SendSpace
 from cognitive_node_interfaces.msg import Episode
 from core_interfaces.srv import GetNodeFromLTM
 from core.utils import perception_msg_to_dict, separate_perceptions
+from cognitive_nodes.episodic_buffer import EpisodicBuffer
+from cognitive_nodes.episode import episode_msg_to_obj
 
 class File():
     """A MDB file."""
@@ -47,24 +49,38 @@ class File():
         if self.file_object:
             self.file_object.close()
 
+    def write(self):
+        "Method that writes the data in the file"
+        raise NotImplementedError
+    
+    def write_episode(self, msg):
+        "Writes data related to an episode"
+        return None
+
+    def _write_file(self, data):
+        """Write data to the file."""
+        if self.file_object:
+            self.file_object.write(data)
+            self.file_object.flush()
+
 class FileGoodness(File):
     """A file where several goodness statistics about an experiment are stored."""
 
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
-        self.file_object.write(
+        self._write_file(
             "Iteration\tWorld\tGoal reward list\tPolicy\tSensorial changes\tC-nodes\n"
         )
 
     def write(self):
         """Write statistics data."""
         formatted_goals = {goal: f"{reward:.1f}" for goal, reward in self.node.current_episode.reward_list.items()}
-
-        self.file_object.write(
+        current_world = self.node.current_world if self.node.current_world else "None"
+        self._write_file(
             str(self.node.iteration)
             + "\t"
-            + self.node.current_world
+            + current_world
             + "\t"
             + str(f"{formatted_goals}")
             + "\t"
@@ -90,7 +106,7 @@ class FilePNodesSuccess(File):
         """Write success."""
         for pnode, success in self.node.pnodes_success.items():
             if success is not None:
-                self.file_object.write(
+                self._write_file(
                     str(self.node.iteration)
                     + "\t"
                     + pnode
@@ -106,12 +122,12 @@ class FileTrialsSuccess(File):
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
-        self.file_object.write("Iteration\tTrial\tIterations\tSuccess\n")
+        self._write_file("Iteration\tTrial\tIterations\tSuccess\n")
 
     def write(self):
         """Write success."""
         for iteration, trial, iterations, success in self.node.trials_data:
-            self.file_object.write(
+            self._write_file(
                 str(iteration)
                 + "\t"
                 + str(trial)
@@ -121,6 +137,7 @@ class FileTrialsSuccess(File):
                 + str(success)
                 + "\n"
             )
+            self.file_object.flush()
         self.node.trials_data = []
 
 class FilePNodesContent(File):
@@ -179,16 +196,16 @@ class FilePNodesContent(File):
 
                             j = 0
                             for confidence in confidences:
-                                self.file_object.write(str(self.ite) + "\t")
-                                self.file_object.write(pnode + "\t")
+                                self._write_file(str(self.ite) + "\t")
+                                self._write_file(pnode + "\t")
 
                                 for i in range(j, len(labels)+j):
-                                    self.file_object.write(str(data[i]) + "\t")
-                                self.file_object.write(str(confidence) + "\n")
+                                    self._write_file(str(data[i]) + "\t")
+                                self._write_file(str(confidence) + "\n")
                                 j = j + len(labels)
 
                         else:
-                            self.file_object.write("ERROR. LABELS DO NOT MATCH BETWEEN PNODES\n")
+                            self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN PNODES\n")
             self.ite = self.ite + 100 #TODO Vary iterations
 
 class FileLastIterationPNodesContent(FilePNodesContent):
@@ -214,17 +231,17 @@ class FileLastIterationPNodesContent(FilePNodesContent):
 
                             j = 0
                             for confidence in confidences:
-                                self.file_object.write(str(self.node.iterations) + "\t")
-                                self.file_object.write(pnode + "\t")
+                                self._write_file(str(self.node.iterations) + "\t")
+                                self._write_file(pnode + "\t")
 
                                 for i in range(j, len(labels)+j):
-                                    self.file_object.write(str(data[i]) + "\t")
-                                self.file_object.write(str(confidence) + "\n")
+                                    self._write_file(str(data[i]) + "\t")
+                                self._write_file(str(confidence) + "\n")
                                 j = j + len(labels)
 
                         else:
-                            self.file_object.write("ERROR. LABELS DO NOT MATCH BETWEEN PNODES.\n")
-                    
+                            self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN PNODES.\n")
+
                     
         
 class FileGoalsContent(File):
@@ -282,17 +299,17 @@ class FileGoalsContent(File):
 
                             j = 0
                             for confidence in confidences:
-                                self.file_object.write(str(self.ite) + "\t")
-                                self.file_object.write(goal + "\t")
+                                self._write_file(str(self.ite) + "\t")
+                                self._write_file(goal + "\t")
 
                                 for i in range(j, len(labels)+j):
-                                    self.file_object.write(str(data[i]) + "\t")
-                                self.file_object.write(str(confidence) + "\n")
+                                    self._write_file(str(data[i]) + "\t")
+                                self._write_file(str(confidence) + "\n")
                                 j = j + len(labels)
 
                         else:
-                            self.file_object.write("ERROR. LABELS DO NOT MATCH BETWEEN GOALS\n")
-                    
+                            self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN GOALS\n")
+
                 
             self.ite = self.ite + 100 #TODO Vary iterations
     
@@ -318,17 +335,17 @@ class FileLastIterationGoalsContent(FileGoalsContent):
 
                             j = 0
                             for confidence in confidences:
-                                self.file_object.write(str(self.node.iterations) + "\t")
-                                self.file_object.write(goal + "\t")
+                                self._write_file(str(self.node.iterations) + "\t")
+                                self._write_file(goal + "\t")
 
                                 for i in range(j, len(labels)+j):
-                                    self.file_object.write(str(data[i]) + "\t")
-                                self.file_object.write(str(confidence) + "\n")
+                                    self._write_file(str(data[i]) + "\t")
+                                self._write_file(str(confidence) + "\n")
                                 j = j + len(labels)
 
                         else:
-                            self.file_object.write("ERROR. LABELS DO NOT MATCH BETWEEN GOALS.\n")
-                    
+                            self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN GOALS.\n")
+
                     else:
                         self.created_clients[goal] = None
 
@@ -337,7 +354,7 @@ class FileNeighbors(File):
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
-        self.file_object.write("Goal\tNeighbor1\tNeighbor2\n")
+        self._write_file("Goal\tNeighbor1\tNeighbor2\n")
         self.ltm_client = ServiceClient(GetNodeFromLTM, f'{self.node.LTM_id}/get_node')
     
     def write(self):
@@ -347,19 +364,19 @@ class FileNeighbors(File):
             nodes = yaml.safe_load(response.data)
             for goal in nodes['Goal']:
                 if 'reach' in goal or 'goal_' in goal:
-                    self.file_object.write(str(goal) + "\t")
-                    self.file_object.write(str(nodes['Goal'][goal]["neighbors"][0]["name"]) + "\t")
+                    self._write_file(str(goal) + "\t")
+                    self._write_file(str(nodes['Goal'][goal]["neighbors"][0]["name"]) + "\t")
                     if 'reach' in goal:
-                        self.file_object.write(str(nodes['Goal'][goal]["neighbors"][1]["name"]) + "\n")
+                        self._write_file(str(nodes['Goal'][goal]["neighbors"][1]["name"]) + "\n")
                     else:
-                        self.file_object.write("\n")
+                        self._write_file("\n")
 
 class FileNeighborsFull(File):
     """A file that saves the full neighbor tree at the end of an experiment."""    
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
-        self.file_object.write("Goal\tNeighbor1\tNeighbor2\n")
+        self._write_file("Goal\tNeighbor1\tNeighbor2\n")
         self.ltm_client = ServiceClient(GetNodeFromLTM, f'{self.node.LTM_id}/get_node')
     
     def write(self):
@@ -368,8 +385,30 @@ class FileNeighborsFull(File):
             response = self.ltm_client.send_request(name="")
             nodes = yaml.safe_load(response.data)
             for goal in nodes['Goal']:
-                self.file_object.write(str(goal) + "\t")
-                self.file_object.write(str(nodes['Goal'][goal]["neighbors"]) + "\n")
+                self._write_file(str(goal) + "\t")
+                self._write_file(str(nodes['Goal'][goal]["neighbors"]) + "\n")
+
+class FileEpisodesDataset(File):
+    """A file that records the episodes published"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.episodic_buffer = EpisodicBuffer(self.node, main_size=None, secondary_size=0, inputs=["old_perception", "action",
+                                                                                                    #"parent_policy", 
+                                                                                                    "perception", "reward_list"])
+
+    def write_episode(self, msg):
+        episode = episode_msg_to_obj(msg)
+        self.node.get_logger().info(f"Received episode to write: {episode}")
+        self.episodic_buffer.add_episode(episode)
+
+    def write(self):
+        return None
+    
+    def close(self):
+        dataframe = self.episodic_buffer.get_dataframes()[0]
+        if dataframe is not None:
+            dataframe.to_csv(self.file_object)
+        super().close()
 
 
 
