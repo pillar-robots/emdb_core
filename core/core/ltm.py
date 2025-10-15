@@ -44,7 +44,7 @@ class LTM(Node):
         self.id = id
         self.changes_topic = False
         # TODO Create keys from config file
-        self.cognitive_nodes = {'CNode': {}, 'Drive': {}, 'Goal': {}, 'Need': {}, 'Policy': {}, 'Perception': {},'PNode': {}, 'UtilityModel': {}, 'WorldModel': {}}
+        self.cognitive_nodes = {'CNode': {}, 'Drive': {}, 'Goal': {}, 'RobotPurpose': {}, 'Policy': {}, 'Perception': {},'PNode': {}, 'UtilityModel': {}, 'WorldModel': {}}
 
         
         # State topic
@@ -133,14 +133,14 @@ class LTM(Node):
         return self.cognitive_nodes.get('Goal', [])
     
     @property
-    def needs(self):
+    def purposes(self):
         """
-        Get all cognitive nodes of type 'Need' from the LTM.
+        Get all cognitive nodes of type 'RobotPurpose' from the LTM.
 
-        :return: A list of 'Need' nodes.
+        :return: A list of 'RobotPurpose' nodes.
         :rtype: list
         """
-        return self.cognitive_nodes.get('Need', [])
+        return self.cognitive_nodes.get('RobotPurpose', [])
     
     @property
     def policies(self):
