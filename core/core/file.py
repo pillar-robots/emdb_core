@@ -393,13 +393,14 @@ class FileEpisodesDataset(File):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.episodic_buffer = EpisodicBuffer(self.node, main_size=None, secondary_size=0, inputs=["old_perception", "action",
-                                                                                                    #"parent_policy", 
+                                                                                                    "parent_policy", 
                                                                                                     "perception", "reward_list"])
 
     def write_episode(self, msg):
         episode = episode_msg_to_obj(msg)
-        self.node.get_logger().info(f"Received episode to write: {episode}")
+        self.node.get_logger().debug(f"Received episode to write: {episode}")
         self.episodic_buffer.add_episode(episode)
+        self.node.get_logger().debug(f"Episodic buffer size: {self.episodic_buffer.main_size}")
 
     def write(self):
         return None
