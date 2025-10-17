@@ -657,7 +657,7 @@ class CommanderNode(Node):
         file_path = os.path.join(saved_data_dir, file_name + '.yaml')
 
         data_to_save = {}
-        nodes_dict = {'Perception': [], 'Need': [], 'Goal': [], 'Drive': [], 'UtilityModel': [], 'WorldModel': [], 'Policy': [], 'PNode': []}
+        nodes_dict = {'Perception': [], 'RobotPurpose': [], 'Goal': [], 'Drive': [], 'UtilityModel': [], 'WorldModel': [], 'Policy': [], 'PNode': []}
         data_to_save['LTM'] = {'Nodes': nodes_dict}
 
         self.get_logger().info(f'Saving config to {file_path}')
