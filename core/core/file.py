@@ -371,6 +371,53 @@ class FileNeighborsFull(File):
                 self.file_object.write(str(goal) + "\t")
                 self.file_object.write(str(nodes['Goal'][goal]["neighbors"]) + "\n")
 
+class FileDrivesPerceptions(File):
+    """A file where several drive evaluation statistics about an experiment are stored."""
+
+    def write_header(self):
+        """Write the header of the file."""
+        super().write_header()
+        self.file_object.write(
+            "Iteration\tWorld\tDrives list\tPolicy\tPerceptions\tEvaluation\n"
+        )
+
+    def write(self):
+        """Write statistics data."""
+        list_drives ={}
+        drives = self.node.LTM_cache["Drive"].items()
+        needs = self.node.LTM_cache["Need"].items()
+        for drive, info in drives:
+            if "activation" in info:
+                d_activation = info["activation"]
+                for need, n_info in needs:
+                    drive_tag = drive.replace("_drive", "")
+                    need_tag = need.replace("_need", "")
+                    if "activation" in n_info and drive_tag == need_tag:
+                        n_activation = n_info["activation"]
+                        list_drives[drive] = ["evaluation: ", d_activation/n_activation if n_activation != 0 else 0.0]
+        formatted = {}
+        for key, value in self.node.perception_cache.items():
+            data_list = value.get("data", [])
+            if data_list:
+                clean_data = {
+                    k: v for k, v in data_list[0].items()
+                }
+                formatted[key] = clean_data
+        self.file_object.write(
+            str(self.node.iteration)
+            + "\t"
+            + self.node.current_world
+            + "\t"
+            + str(list_drives)
+            + "\t"
+            + self.node.current_policy
+            + "\t"
+            + str(formatted)
+            + "\t"
+            + "\n"
+        )
+
+
 
 
 
