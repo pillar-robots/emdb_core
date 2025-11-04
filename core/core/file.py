@@ -385,14 +385,14 @@ class FileDrivesPerceptions(File):
         """Write statistics data."""
         list_drives ={}
         drives = self.node.LTM_cache["Drive"].items()
-        needs = self.node.LTM_cache["Need"].items()
+        missions = self.node.LTM_cache["RobotPurpose"].items()
         for drive, info in drives:
             if "activation" in info:
                 d_activation = info["activation"]
-                for need, n_info in needs:
+                for mission, n_info in missions:
                     drive_tag = drive.replace("_drive", "")
-                    need_tag = need.replace("_need", "")
-                    if "activation" in n_info and drive_tag == need_tag:
+                    mission_tag = mission.replace("_mission", "")
+                    if "activation" in n_info and drive_tag == mission_tag:
                         n_activation = n_info["activation"]
                         list_drives[drive] = ["evaluation: ", d_activation/n_activation if n_activation != 0 else 0.0]
         formatted = {}
