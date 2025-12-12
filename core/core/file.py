@@ -1,6 +1,7 @@
 from rclpy.time import Time
 import os
 import yaml
+import threading
 
 from core.service_client import ServiceClient
 from cognitive_node_interfaces.msg import Activation
@@ -395,21 +396,26 @@ class FileEpisodesDataset(File):
         self.episodic_buffer = EpisodicBuffer(self.node, main_size=None, secondary_size=0, inputs=["old_perception", "action",
                                                                                                     "parent_policy", 
                                                                                                     "perception", "reward_list"])
+        self.semaphore = threading.Semaphore()
 
     def write_episode(self, msg):
+        self.semaphore.acquire()
         episode = episode_msg_to_obj(msg)
         self.node.get_logger().debug(f"Received episode to write: {episode}")
         self.episodic_buffer.add_episode(episode)
         self.node.get_logger().debug(f"Episodic buffer size: {self.episodic_buffer.main_size}")
+        self.semaphore.release()
 
     def write(self):
         return None
     
     def close(self):
+        self.semaphore.acquire()    
         dataframe = self.episodic_buffer.get_dataframes()[0]
         if dataframe is not None:
             dataframe.to_csv(self.file_object)
         super().close()
+        self.semaphore.release()
 
 
 
