@@ -178,8 +178,9 @@ class FilePNodesContent(File):
         self.labels = labels
 
     def write(self):
-        """Writes P-Nodes contents."""        
-        if "PNode" in self.node.LTM_cache and self.node.iteration % self.save_interval == 0: #TODO Vary iterations
+        """Writes P-Nodes contents."""    
+        write_needed = (self.save_interval > 0 and self.node.iteration % self.save_interval == 0) or (self.node.iteration == self.node.iterations)    
+        if "PNode" in self.node.LTM_cache and write_needed:
             for pnode in self.node.LTM_cache["PNode"]:
                 if pnode not in self.created_clients:
                     self.create_pnode_client(pnode)
