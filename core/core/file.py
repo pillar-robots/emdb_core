@@ -382,7 +382,7 @@ class FileDrivesPerceptions(File):
         )
 
     def write(self):
-        """Write statistics data."""
+        """Write the drive evaluation and missions."""
         list_drives ={}
         drives = self.node.LTM_cache["Drive"].items()
         missions = self.node.LTM_cache["RobotPurpose"].items()
