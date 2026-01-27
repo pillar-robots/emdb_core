@@ -5,8 +5,8 @@ import threading
 
 from core.service_client import ServiceClient
 from cognitive_node_interfaces.msg import Activation
-from cognitive_node_interfaces.srv import SendSpace
-from cognitive_node_interfaces.msg import Episode
+from cognitive_node_interfaces.srv import SendSpace, SaveModel
+from cognitive_node_interfaces.msg import SuccessRate
 from core_interfaces.srv import GetNodeFromLTM
 from core.utils import perception_msg_to_dict, separate_perceptions
 from cognitive_nodes.episodic_buffer import EpisodicBuffer
@@ -15,13 +15,12 @@ from cognitive_nodes.episode import episode_msg_to_obj
 class File():
     """A MDB file."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, ident, file_name, node, **params):
         """Init attributes when a new object is created."""
-        self.ident = kwargs["ident"]
-        self.file_name = kwargs["file_name"]
+        self.ident = ident
+        self.file_name = file_name
         self.file_object = None
-        self.data = kwargs.get("data")
-        self.node = kwargs["node"]
+        self.node = node
 
     def __getstate__(self):
         """
@@ -76,7 +75,7 @@ class FileGoodness(File):
 
     def write(self):
         """Write statistics data."""
-        formatted_goals = {goal: f"{reward:.1f}" for goal, reward in self.node.current_episode.reward_list.items()}
+        formatted_goals = {goal: f"{reward:.1f}" for goal, reward in sorted(self.node.current_episode.reward_list.items())}
         current_world = self.node.current_world if self.node.current_world else "None"
         self._write_file(
             str(self.node.iteration)
@@ -96,7 +95,7 @@ class FileGoodness(File):
         
 
 class FilePNodesSuccess(File):
-    """A file that records wether a P-node's activation has been successful or not."""
+    """A file that records whether a P-node's activation has been successful or not."""
 
     def write_header(self):
         """Write the header of the file."""
@@ -118,7 +117,7 @@ class FilePNodesSuccess(File):
             self.node.pnodes_success[pnode] = None
 
 class FileTrialsSuccess(File):
-    """A file that records wether a P-node's activation has been successful or not."""
+    """A file that records whether a P-node's activation has been successful or not."""
 
     def write_header(self):
         """Write the header of the file."""
@@ -142,14 +141,17 @@ class FileTrialsSuccess(File):
         self.node.trials_data = []
 
 class FilePNodesContent(File):
-    """A file that saves the contents of the P-nodes."""    
+    """A file that saves the contents of the P-nodes."""   
+    def __init__(self, ident, file_name, node, save_interval=100, **params):
+        super().__init__(ident, file_name, node, **params)
+        self.save_interval = save_interval
+
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
         self.file_object.write("Iteration\tIdent\t")
         self.header_finished = False
         self.created_clients = {}
-        self.ite = 100 # Iterations between writings #TODO Vary iterations
 
     def create_pnode_client(self, pnode_name):
         """
@@ -176,8 +178,9 @@ class FilePNodesContent(File):
         self.labels = labels
 
     def write(self):
-        """Writes P-Nodes contents."""        
-        if "PNode" in self.node.LTM_cache and self.node.iteration % 100 == 0: #TODO Vary iterations
+        """Writes P-Nodes contents."""    
+        write_needed = (self.save_interval > 0 and self.node.iteration % self.save_interval == 0) or (self.node.iteration == self.node.iterations)    
+        if "PNode" in self.node.LTM_cache and write_needed:
             for pnode in self.node.LTM_cache["PNode"]:
                 if pnode not in self.created_clients:
                     self.create_pnode_client(pnode)
@@ -197,7 +200,7 @@ class FilePNodesContent(File):
 
                             j = 0
                             for confidence in confidences:
-                                self._write_file(str(self.ite) + "\t")
+                                self._write_file(str(self.node.iteration) + "\t")
                                 self._write_file(pnode + "\t")
 
                                 for i in range(j, len(labels)+j):
@@ -207,7 +210,6 @@ class FilePNodesContent(File):
 
                         else:
                             self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN PNODES\n")
-            self.ite = self.ite + 100 #TODO Vary iterations
 
 class FileLastIterationPNodesContent(FilePNodesContent):
     """A file that saves the contents of the P-nodes at the end of an experiment."""
@@ -247,13 +249,16 @@ class FileLastIterationPNodesContent(FilePNodesContent):
         
 class FileGoalsContent(File):
     """A file that saves the contents of the Goals at the end of an experiment."""
+    def __init__(self, ident, file_name, node, save_interval=100, **params):
+        super().__init__(ident, file_name, node, **params)
+        self.save_interval = save_interval
+
     def write_header(self):
         """Write the header of the file."""
         super().write_header()
         self.file_object.write("Iteration\tIdent\t")
         self.header_finished = False
         self.created_clients = {}
-        self.ite = 100 # Iterations between writings #TODO Vary iterations
 
     def create_goal_client(self, goal_name):
         """
@@ -281,7 +286,7 @@ class FileGoalsContent(File):
 
     def write(self):
         """Writes Goals contents.""" 
-        if "Goal" in self.node.LTM_cache and self.node.iteration % 100 == 0: #TODO Vary iterations
+        if "Goal" in self.node.LTM_cache and self.node.iteration % self.save_interval == 0: #TODO Vary iterations
             for goal in self.node.LTM_cache["Goal"]:
                 if goal not in self.created_clients:
                     self.create_goal_client(goal)
@@ -300,7 +305,7 @@ class FileGoalsContent(File):
 
                             j = 0
                             for confidence in confidences:
-                                self._write_file(str(self.ite) + "\t")
+                                self._write_file(str(self.node.iteration) + "\t")
                                 self._write_file(goal + "\t")
 
                                 for i in range(j, len(labels)+j):
@@ -310,9 +315,6 @@ class FileGoalsContent(File):
 
                         else:
                             self._write_file("ERROR. LABELS DO NOT MATCH BETWEEN GOALS\n")
-
-                
-            self.ite = self.ite + 100 #TODO Vary iterations
     
 
 class FileLastIterationGoalsContent(FileGoalsContent):
@@ -464,6 +466,88 @@ class FileDrivesPerceptions(File):
         )
 
 
+class FileWorldModelSuccess(File):
+    """A file that records the success of the world model predictions."""
+    def __init__(self, ident, file_name, node, **params):
+        super().__init__(ident, file_name, node, **params)
+        self.subscriptions = {}
+
+    def write_header(self):
+        super().write_header()
+        self._write_file(
+            "Iteration\tWorld_Model\tSuccess\n"
+        )
+
+    def write(self):
+        # Check world model nodes in LTM cache
+        world_models = self.node.LTM_cache.get("WorldModel", {})
+        for wm_name in world_models:
+            if wm_name not in self.subscriptions:
+                self.subscriptions[wm_name] = self.node.create_subscription(
+                    SuccessRate,
+                    f'world_model/{wm_name}/prediction_error',
+                    self.success_rate_callback,
+                    1,
+                    callback_group=self.node.cbgroup_client
+                )
+
+    def success_rate_callback(self, msg):
+        self._write_file(
+            str(self.node.iteration)
+            + "\t"
+            + msg.node_name
+            + "\t"
+            + f"{msg.success_rate:.4f}"
+            + "\n"
+        )
+
+
+class FileSaveModels(File):
+    """A file that triggers the saving of models in nodes."""
+    def __init__(self, ident, file_name, node, save_interval=100, **params):
+        super().__init__(ident, file_name, node, **params)
+        self.folder_path = None
+        self.save_model_clients = {}
+        self.save_interval = save_interval
+        self.node_type_mapping = {
+            "DeliberativeModel": "deliberative_model",
+            "PNode": "pnode",
+            "WorldModel": "world_model",
+            "UtilityModel": "utility_model"
+        }
+        self.consecutive_index = 0
+
+    
+    def write_header(self):
+        """Create the output folder."""
+        i = 0
+        while os.path.exists(f"{self.file_name}_{i}"):
+            i = i + 1
+        
+        self.consecutive_index = i
+        folder_path_def = f"{self.file_name}_{i}"
+        os.makedirs(folder_path_def, exist_ok=True)
+        self.folder_path = folder_path_def
+        self.file_object = folder_path_def
+
+    def write(self):
+        # Trigger save models in all nodes in LTM cache
+
+        write_needed = (self.save_interval > 0 and self.node.iteration % self.save_interval == 0) or (self.node.iteration == self.node.iterations)
+        if write_needed:
+            for node_type in self.node.LTM_cache:
+                if node_type in self.node_type_mapping:
+                    service_prefix = self.node_type_mapping[node_type]
+                    for node_name in self.node.LTM_cache[node_type]:
+                        if node_name not in self.save_model_clients:
+                            self.save_model_clients[node_name] = ServiceClient(
+                                SaveModel,
+                                f'{service_prefix}/{node_name}/save_model'
+                            )
+                        self.save_model_clients[node_name].send_request(prefix=f"{self.file_name}_{self.consecutive_index}/", suffix=f"_iter_{self.node.iteration}")
+
+    def close(self):
+        return None
 
 
 
