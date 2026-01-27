@@ -619,7 +619,7 @@ class CommanderNode(Node):
                 self.get_logger().info(f"Loading {class_name} {name}...")
 
                 new_ex = experiment_data.get('new_executor', False)
-                new_threads = experiment_data.get('thread', 1)
+                new_threads = experiment_data.get('threads', 1)
                 if new_ex:
                     ex=self.add_execution_node(new_threads)
                 else:

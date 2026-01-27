@@ -428,7 +428,7 @@ class FileWorldModelSuccess(File):
     def write_header(self):
         super().write_header()
         self._write_file(
-            "Iteration\tWorld Model\tSuccess Value\n"
+            "Iteration\tWorld_Model\tSuccess\n"
         )
 
     def write(self):
